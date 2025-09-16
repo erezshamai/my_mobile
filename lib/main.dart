@@ -63,7 +63,11 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
   int _counter = 0;
   bool _isExercising = false;
   DateTime? _startTime;
-
+  String? _selectedOption; // Variable to hold the selected combobox option
+  final List<String> _options = [
+    'push into local file',
+    'push into google sheets',
+  ]; // Combobox options  
 
   void _incrementCounter() {
     setState(() {
@@ -76,24 +80,31 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
     });
   }
   Future<void> _handleStartExercise() async {
+    if (_selectedOption == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a storage option')),
+      );
+      return;
+    }    
     setState(() {
      // _isExercising = true;
     });
 
     try {
       final currentTime = DateTime.now();
-
-      // Add record to Google Sheet
-/*       await GoogleSheetsService.addExerciseRecord(SPREADSHEET_ID, currentTime);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exercise start time recorded in Google Sheets!')),
-      );
- */
-      // Add record to local file
-      await LocalFileService.addLocalExerciseRecord(currentTime);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exercise start time recorded in local file!')),
-      );
+      if (_selectedOption == 'push into local file') {
+        // Add record to local file
+        await LocalFileService.addLocalExerciseRecord(currentTime);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Exercise start time recorded in local file!')),
+        );
+      } else if (_selectedOption == 'push into google sheets') {
+        // Add record to Google Sheet
+        /**await GoogleSheetsService.addExerciseRecord(SPREADSHEET_ID, currentTime);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Exercise start time recorded in Google Sheets!')),
+        ); */
+      }
 
       setState(() {
         _startTime = currentTime;
@@ -139,6 +150,28 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
                 style: const TextStyle(fontSize: 20, color: Colors.white),
               ),
             ),
+            // Add the combobox (DropdownButton)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+              child: DropdownButton<String>(
+                value: _selectedOption,
+                hint: const Text('Select storage option'),
+                isExpanded: true,
+                items: _options.map((String option) {
+                  return DropdownMenuItem<String>(
+                    value: option,
+                    child: Text(option),
+                  );
+                }).toList(),
+                onChanged: _isExercising
+                    ? null // Disable dropdown while exercising
+                    : (String? newValue) {
+                        setState(() {
+                          _selectedOption = newValue;
+                        });
+                      },
+              ),
+            ),            
             if (_startTime != null)
               Padding(
                 padding: const EdgeInsets.only(top: 30),

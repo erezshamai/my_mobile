@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Exercise Tracker',
+      title: 'Task Tracker',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
@@ -46,7 +46,7 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
   // State for holding the list of records
   List<ExerciseRecord> _records = [];
   bool _isLoading = true; // NEW: Loading state
-  
+
 //Helper method to format Duration ---
   String _formatDuration(Duration? duration) {
     if (duration == null) {
@@ -129,13 +129,13 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
       if (_selectedOption == 'push into local file') {
         await LocalFileService.addLocalExerciseRecord(currentTime,note);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Exercise started and recorded locally!')),
+          const SnackBar(content: Text('Task started and recorded locally!')),
         );
         _fetchRecords(); // Refresh the table after adding a new record
       } else if (_selectedOption == 'push into google sheets') {
         // await GoogleSheetsService.addExerciseRecord(SPREADSHEET_ID, currentTime);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Exercise started and recorded in Google Sheets!')),
+          const SnackBar(content: Text('Task started and recorded in Google Sheets!')),
         );
       }
       
@@ -146,7 +146,7 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
       print('Error: $e');
       if (!mounted) return; //Only show SnackBar if the widget is still in the tree
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to record exercise. Error: $e')),
+        SnackBar(content: Text('Failed to record Task. Error: $e')),
       );
       setState(() {
         _isExercising = true;
@@ -161,11 +161,11 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
       _selectedOption = null;
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Exercise stopped!')),
+      const SnackBar(content: Text('Task stopped!')),
     );
   }
 
-// NEW: Handler for the Start/Stop button within the table
+// Handler for the Start/Stop button within the table
   void _handleToggleRecord(ExerciseRecord record) async {
     final index = _records.indexOf(record);
     if (index == -1) return; 
@@ -181,12 +181,12 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
         await LocalFileService.updateAndSaveRecord(_records); // Save to file
         
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Exercise stopped and record updated!')),
+          const SnackBar(content: Text('Task stopped and record updated!')),
         );
         
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Record already completed.')),
+          const SnackBar(content: Text('Task already completed.')),
         );
         return; 
       }
@@ -195,9 +195,9 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
       setState(() {});
       
     } catch (e) {
-      print('Error updating record: $e');
+      print('Error updating Task: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update record. Error: $e')),
+        SnackBar(content: Text('Failed to update Task. Error: $e')),
       );
       setState(() {});
     }
@@ -224,13 +224,13 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
       setState(() {});
       
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Note updated and record saved!')),
+        const SnackBar(content: Text('Note updated and Task saved!')),
       );
       
     } catch (e) {
       print('Error updating note: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update note. Error: $e')),
+        SnackBar(content: Text('Failed to update Task. Error: $e')),
       );
       setState(() {});
     }
@@ -241,7 +241,7 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Exercise Tracker'),
+        title: const Text('Task Tracker'),
         centerTitle: true,
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
@@ -271,7 +271,7 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
             ),
             const SizedBox(height: 30),
             const Text(
-              'Past/Ongoing Records', 
+              'Past/Ongoing Tasks', 
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
@@ -279,7 +279,7 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
               child: _isLoading 
                 ? const Center(child: CircularProgressIndicator()) 
                 : _records.isEmpty 
-                    ? const Center(child: Text('No records found. Start a new exercise!'))
+                    ? const Center(child: Text('No records found. Start a new Task!'))
                     : SingleChildScrollView( 
                         scrollDirection: Axis.vertical,
                         child: SingleChildScrollView( // Add horizontal scroll for the table itself
@@ -322,10 +322,10 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
             // MODIFIED: Editable Notes Cell
             DataCell(
               SizedBox(
-                width: 150, // Constrain width for editing
+                width: 75, 
                 child: TextFormField(
                   textDirection: TextDirection.rtl,
-                  textAlign: TextAlign.right,
+                  textAlign: TextAlign.left,
                   initialValue: record.notes,
                   keyboardType: TextInputType.text,
                   maxLines: 2,
@@ -364,7 +364,7 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
       onPressed: _isExercising ? _handleStopExercise : _handleStartExercise,
       icon: Icon(_isExercising ? Icons.stop_circle_outlined : Icons.play_arrow_outlined),
       label: Text(
-        _isExercising ? 'Stop Exercise' : 'Start Exercise',
+        _isExercising ? 'Stop Task' : 'Start Task',
         style: const TextStyle(fontSize: 18),
       ),
       style: ElevatedButton.styleFrom(
@@ -421,7 +421,7 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
         child: Column(
           children: [
             const Text(
-              'Exercise in Progress',
+              'Task in Progress',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blueAccent),
             ),
             const SizedBox(height: 10),

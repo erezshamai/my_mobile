@@ -1,4 +1,5 @@
 {
     "cmake.sourceDirectory": "C:/dev/my_flutter_exercisetracker/linux",
-    "java.configuration.updateBuildConfiguration": "automatic"
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "dart.flutterSdkPath": "C:\\dev\\MyFlutterExerciseTracker\\FlutterSDK\\flutter"
 }

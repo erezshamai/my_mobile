@@ -5,10 +5,12 @@ import 'package:file_saver/file_saver.dart';
 import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:my_flutter_exercisetracker/models/exercise_record.dart'; 
-import 'package:flutter/material.dart'; // If this is a Flutter application, import it accordingly
+import 'package:flutter/foundation.dart';
+
+//import 'package:flutter/material.dart'; // If this is a Flutter application, import it accordingly
 
 // --- Global Constants for File Management ---
-const List<String> _csvHeaders = ['Date', 'Start Time', 'End Time', 'Duration', 'Notes'];
+const List<String> _csvHeaders = ['Date', 'Start Time', 'End Time', 'Duration', 'TaskType', 'Notes'];
 class LocalFileService {
   
   static Future<String> _getFileName() async {
@@ -23,7 +25,7 @@ class LocalFileService {
       // You can get the app's document directory to manage temporary files
       final tempDir = await getTemporaryDirectory();
       final tempFilePath = '${tempDir.path}/$fileName';
-      print('Temporary file path: $tempFilePath');
+      debugPrint('Temporary file path: $tempFilePath');
     return tempFilePath;
   }
 
@@ -56,7 +58,7 @@ class LocalFileService {
 
 // Unconditionally check and remove the first row if it looks like a header
 // or if the list has more than just the header row.
-if (csvList.length > 0 && csvList[0].join(',') == _csvHeaders.join(',')) {
+if (csvList.isNotEmpty  && csvList[0].join(',') == _csvHeaders.join(',')) {
     // We found a header, remove it if there are data rows following.
     if (csvList.length > 1) {
         csvList.removeAt(0);
@@ -68,7 +70,7 @@ if (csvList.length > 0 && csvList[0].join(',') == _csvHeaders.join(',')) {
       // Convert CSV rows to ExerciseRecord objects
       return csvList.map((row) => ExerciseRecord.fromCsvRow(row)).toList();
     } catch (e) {
-      print('Error reading CSV file: $e');
+      debugPrint('Error reading CSV file: $e');
       return []; // Return empty list on error
     }
   }
@@ -88,7 +90,7 @@ if (csvList.length > 0 && csvList[0].join(',') == _csvHeaders.join(',')) {
 
     await _rewriteAndSaveFile(existingRecords);
     } catch (e) {
-      print('Error writing to local file: $e');
+      debugPrint('Error writing to local file: $e');
       rethrow;
     }
   }
@@ -102,8 +104,8 @@ static Future<void> updateAndSaveRecord(List<ExerciseRecord> updatedRecords) asy
     final filePath = await _getFilePath();
     final file = File(filePath);
     final fileName = await _getFileName();
-    print('Rewriting file at path: $filePath');
-    print('File name for saving: $fileName');
+    debugPrint('Rewriting file at path: $filePath');
+    debugPrint('File name for saving: $fileName');
     // Convert all records to CSV format, including the header
     final csvDataList = [_csvHeaders];
     // Convert records to their CSV row format
@@ -111,7 +113,7 @@ static Future<void> updateAndSaveRecord(List<ExerciseRecord> updatedRecords) asy
     
     final csvString = const ListToCsvConverter(eol: '\n').convert(csvDataList);
 
-    print('Rewriting CSV file with data:\n$csvString');
+    debugPrint('Rewriting CSV file with data:\n $csvString');
 
     // 1. Write the new complete CSV string to the temporary file
     // Define the UTF-8 BOM bytes
@@ -132,14 +134,14 @@ static Future<void> updateAndSaveRecord(List<ExerciseRecord> updatedRecords) asy
     Uint8List fileBytes = await file.readAsBytes();
 
     // 3. Use file_saver to save the file to the user's Downloads folder.
-    await FileSaver.instance.saveFile(
-      name: fileName,
+    String downloadfilePath = await FileSaver.instance.saveFile(
+      name: fileName.replaceAll('.csv', ''), // name without extension
       bytes: fileBytes,
       ext: 'csv',
       mimeType: MimeType.csv,        
     );
 
-    print('Successfully updated and saved file to Downloads folder.');
+    debugPrint('Successfully updated and saved file to $downloadfilePath folder.');
   }  
   
 }

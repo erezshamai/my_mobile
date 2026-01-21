@@ -5,6 +5,7 @@ class ExerciseRecord {
   final DateTime startTime;
   DateTime? endTime; // Stays mutable for in-memory updates until saved
   final String notes;
+  final String? taskType;
   
 
   ExerciseRecord({
@@ -12,19 +13,22 @@ class ExerciseRecord {
     required this.startTime,
     this.endTime,
     required this.notes,
+    this.taskType,
   });
 
-  // Helper method to create a copy of the record with new values (like notes)
+// Helper method to create a copy of the record with new values (like notes)
   ExerciseRecord copyWith({
     DateTime? endTime,
     String? notes,
+    String? taskType,
   }) {
     // this.endTime is used because it's a field that can be changed in the object instance.
     return ExerciseRecord(
-      date: this.date,
-      startTime: this.startTime,
-      endTime: endTime ?? this.endTime,
+      date: date,
+      startTime:startTime,
+      endTime: endTime ?? endTime,
       notes: notes ?? this.notes,
+      taskType: taskType ?? this.taskType,
     );
   }
   Duration? get duration {
@@ -34,9 +38,9 @@ class ExerciseRecord {
     return endTime!.difference(startTime);
   }
 
-  // Helper method to convert the object to a CSV row
+// Helper method to convert the object to a CSV row
   List<String> toCsvRow() {
-    // Format: Date, Start Time, End Time, Notes
+    // Format: Date, Start Time, End Time, Duration, TaskType, Notes
     final dateString = date.toLocal().toIso8601String().split('T')[0];
     final startTimeString = startTime.toLocal().toIso8601String().split('T')[1].substring(0, 8);
     // Use empty string for End Time if it's null (ongoing)
@@ -55,12 +59,12 @@ class ExerciseRecord {
         final seconds = recordDuration.inSeconds.remainder(60).toString().padLeft(2, '0');
         durationString = '$hours:$minutes:$seconds';
       }    
-    return [dateString, startTimeString, endTimeString,durationString, notes];
+    return [dateString, startTimeString, endTimeString, durationString, taskType ?? '', notes];
   }
 
-  // Factory constructor to create an object from a CSV row
+// Factory constructor to create an object from a CSV row
   factory ExerciseRecord.fromCsvRow(List<dynamic> row) {
-    // Row indices: 0: Date, 1: Start Time, 2: End Time, 3: Notes
+    // Row indices: 0: Date, 1: Start Time, 2: End Time, 3: Duration, 4: TaskType, 5: Notes
     final datePart = row[0] as String;
     // Combine Date + Start Time
     final startDateTime = DateTime.parse('${datePart}T${row[1] as String}');
@@ -75,8 +79,10 @@ class ExerciseRecord {
       date: startDateTime,
       startTime: startDateTime,
       endTime: endDateTime,
+      // Read task type if column exists
+      taskType: row.length > 4 ? (row[4] as String).isEmpty ? null : row[4] as String : null,
       // Ensure we safely read notes if the column exists
-      notes: row.length > 4 ? row[4] as String : '', 
+      notes: row.length > 5 ? row[5] as String : '', 
     );
   }
 }

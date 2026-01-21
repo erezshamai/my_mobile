@@ -2,7 +2,7 @@ import 'package:googleapis/sheets/v4.dart' as sheets;
 import 'package:googleapis_auth/auth_io.dart'; // This is the key import!
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
-
+import 'package:flutter/foundation.dart';
 class GoogleSheetsService {
   static const _scopes = [sheets.SheetsApi.spreadsheetsScope];
   static const _credentialsPath = 'credentials.json';
@@ -20,7 +20,7 @@ class GoogleSheetsService {
       
       return authClient;
     } catch (e) {
-      print('Error getting auth client: $e');
+      debugPrint('Error getting auth client: $e');
       return null;
     }
   }
@@ -49,10 +49,10 @@ class GoogleSheetsService {
         '$sheetName!A:B',
         valueInputOption: 'USER_ENTERED',
       );
-      print('Successfully appended data to Google Sheet.');
+      debugPrint('Successfully appended data to Google Sheet.');
     } catch (e) {
-      print('Error appending to Google Sheet: $e');
-      throw e;
+      debugPrint('Error appending to Google Sheet: $e');
+      rethrow ;
     } finally {
       authClient.close();
     }

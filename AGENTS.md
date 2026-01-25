@@ -1,363 +1,131 @@
-# AGENTS.md - Flutter Exercise Tracker Development Guidelines
+# AGENTS.md — Guidelines For Autonomous Agents
 
-This document provides guidelines for agentic coding agents working on the Flutter Exercise Tracker project. Follow these conventions to maintain code consistency and quality.
+This repository is a Flutter app (Exercise Tracker). This file tells agentic coding
+agents how to build, test, lint and follow the project's conventions. Keep changes
+small and follow the patterns below.
 
-## Development Commands
+1. Development commands
 
-### Build and Test
-```bash
-# Analyze code for issues
-flutter analyze
+- Analyze code: `flutter analyze`
+- Install deps: `flutter pub get`
+- Run all tests: `flutter test`
+- Run a single test file: `flutter test test/widget_test.dart` (or `flutter test test/<path>.dart`)
+- Run a single test by name: `flutter test --name "My test name"`
+- Run app locally (choose device): `flutter run -d windows` or `-d android` or `-d ios`
+- Build for release: `flutter build windows|android|ios`
+- Clean build artifacts: `flutter clean`
 
-# Run all tests
-flutter test
+Formatting & linting
 
-# Run specific test
-flutter test test/widget_test.dart
+- Format: `dart format .`
+- Auto-fix lints: `dart fix --apply`
+- Keep the analyzer warnings clean; prefer fixing issues over ignoring them.
 
-# Build for different platforms
-flutter build windows
-flutter build android
-flutter build ios
+2. Project structure and naming
 
-# Run app locally
-flutter run -d windows
-flutter run -d android
-flutter run -d ios
+- Top-level layout:
+  - `lib/main.dart` — app entry
+  - `lib/models/` — immutable plain data models (JSON + copyWith)
+  - `lib/services/` — file, persistence and external API logic
+  - `lib/admin_page.dart` — admin UI
 
-# Clean build cache
-flutter clean
+- Filenames: snake_case.dart (e.g., `exercise_record.dart`)
+- Classes: PascalCase (e.g., `ExerciseRecord`)
+- Variables & fields: camelCase; private fields start with `_` (e.g., `_isLoading`)
+- Methods: camelCase; private methods start with `_` (handler methods `_handle*`, builders `_build*`, fetchers `_fetch*`)
+- Constants: UPPER_SNAKE_CASE (e.g., `CSV_HEADERS` or `_CSV_HEADERS` if private)
+- Booleans: use `is` / `has` prefix (e.g., `isActive`, `_hasActiveFilters`)
 
-# Get dependencies
-flutter pub get
+3. Import organization
 
-# Update dependencies
-flutter pub upgrade
-```
+- Order imports in three groups separated by a blank line:
+  1. Flutter / Dart core (e.g. `package:flutter/material.dart`)
+  2. Third-party packages (alphabetical)
+  3. Project imports (alphabetical)
 
-### Linting and Formatting
-```bash
-# Auto-fix linting issues
-dart fix --apply
+Example:
 
-# Format code
-dart format .
-```
-
-## Code Style Guidelines
-
-### File and Naming Conventions
-- **Files:** `snake_case.dart` (e.g., `exercise_record.dart`, `task_type_service.dart`)
-- **Classes:** `PascalCase` (e.g., `ExerciseTrackerScreen`, `TaskType`)
-- **Variables:** `camelCase` with private `_` prefix (e.g., `_isExercising`, `_selectedTaskTypeId`)
-- **Methods:** `camelCase` with descriptive names; private methods use `_` prefix
-  - Handler methods: `_handle*` (e.g., `_handleStartExercise()`)
-  - Builder methods: `_build*` (e.g., `_buildRecordsTable()`)
-  - Fetch methods: `_fetch*` (e.g., `_fetchRecords()`)
-- **Constants:** `UPPER_SNAKE_CASE` (e.g., `_csvHeaders`)
-- **Booleans:** Use `is/has` prefixes (e.g., `_isLoading`, `_hasActiveFilters()`)
-
-### Import Organization
 ```dart
-// 1. Flutter core imports
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 
-// 2. Project imports (alphabetical)
+import 'package:csv/csv.dart';
+
 import 'package:my_flutter_exercisetracker/models/exercise_record.dart';
 import 'package:my_flutter_exercisetracker/services/local_file_service.dart';
-import 'package:my_flutter_exercisetracker/admin_page.dart';
-
-// 3. Commented imports for reference
-// import 'package:my_flutter_exercisetracker/services/google_sheets_service.dart';
 ```
 
-## Architecture Patterns
+4. Models
 
-### Model Layer (`lib/models/`)
-```dart
-class ExampleModel {
-  final String id;
-  final String name;
-  final DateTime createdAt;
+- Models are immutable `const` classes where possible and implement `toJson()` / `fromJson()` and `copyWith()`.
+- Use `DateTime` in UTC or ISO strings for serialization. Provide clear equality (`==`) and `hashCode` overrides.
 
-  const ExampleModel({
-    required this.id,
-    required this.name,
-    required this.createdAt,
-  });
+5. Services
 
-  // Immutable copy method
-  ExampleModel copyWith({
-    String? id,
-    String? name,
-    DateTime? createdAt,
-  }) {
-    return ExampleModel(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      createdAt: createdAt ?? this.createdAt,
-    );
-  }
+- Services handle IO, parsing and external APIs. They should:
+  - Live under `lib/services/`
+  - Use `Future` and `async`/`await`
+  - Catch errors, log with `debugPrint`, and rethrow when the UI must decide how to notify the user
+  - Keep side effects (file writes, network calls) centralized
 
-  // JSON serialization
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'createdAt': createdAt.toIso8601String(),
-  };
+Example error pattern:
 
-  factory ExampleModel.fromJson(Map<String, dynamic> json) => ExampleModel(
-    id: json['id'],
-    name: json['name'],
-    createdAt: DateTime.parse(json['createdAt']),
-  );
-
-  // Equality override for proper comparison
-  @override
-  bool operator ==(Object other) => /* equality logic */;
-  
-  @override
-  int get hashCode => /* hash logic */;
-}
-```
-
-### Service Layer (`lib/services/`)
-```dart
-class ExampleService {
-  static Future<List<ExampleModel>> getData() async {
-    try {
-      final filePath = await _getFilePath();
-      final file = File(filePath);
-      
-      if (!await file.exists()) {
-        return _getDefaultData();
-      }
-
-      final content = await file.readAsString(encoding: utf8);
-      // Parse and return data
-    } catch (e) {
-      debugPrint('Error loading data: $e');
-      rethrow; // Let UI handle the error
-    }
-  }
-
-  static Future<void> saveData(List<ExampleModel> data) async {
-    // Save logic with proper error handling
-  }
-
-  static List<ExampleModel> _getDefaultData() {
-    // Provide sensible defaults
-  }
-}
-```
-
-### UI Layer Patterns
-
-#### State Management
-```dart
-class _ScreenState extends State<ScreenWidget> {
-  bool _isLoading = false;
-  List<DataModel> _data = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchData();
-  }
-
-  Future<void> _fetchData() async {
-    setState(() => _isLoading = true);
-    try {
-      final data = await DataService.getData();
-      if (!mounted) return;
-      setState(() {
-        _data = data;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load data: $e')),
-      );
-    }
-  }
-}
-```
-
-#### Widget Building
-```dart
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(
-      title: Text('Screen Title'),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.refresh),
-          onPressed: _fetchData,
-        ),
-      ],
-    ),
-    body: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          _buildHeader(),
-          const SizedBox(height: 20),
-          _buildContent(),
-        ],
-      ),
-    ),
-  );
-}
-
-Widget _buildHeader() {
-  return Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: _buildForm(),
-    ),
-  );
-}
-```
-
-## Error Handling
-
-### Standard Pattern
 ```dart
 try {
-  // Async operation
-  final result = await SomeService.getData();
-  
-  if (!mounted) return; // Always check widget lifecycle
-  
-  setState(() {
-    // Update state
-  });
-} catch (e) {
-  debugPrint('Error in operation: $e');
-  
-  if (!mounted) return;
-  
-  // User feedback
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Operation failed: $e')),
-  );
-  
-  // Optional: Reset state
-  setState(() {
-    _isLoading = false;
-  });
+  final content = await file.readAsString(encoding: utf8);
+} catch (e, st) {
+  debugPrint('Failed reading file: $e\n$st');
+  rethrow;
 }
 ```
 
-## Data Management
+6. UI patterns
 
-### CSV Handling (Exercise Records)
-```dart
-const List<String> _csvHeaders = ['Date', 'Start Time', 'End Time', 'Duration', 'TaskType', 'Notes'];
+- Stateful widgets must check `if (!mounted) return;` after awaits before calling `setState`.
+- Use small builder methods (`_buildHeader()`, `_buildRecordsTable()`) to keep `build()` readable.
+- Favor `const` widgets when values are compile-time constant.
 
-// Write with UTF-8 BOM for Excel compatibility
-final utf8Bom = [0xEF, 0xBB, 0xBF];
-final csvBytes = utf8.encode(csvString);
-Uint8List fileBytesWithBom = Uint8List.fromList(utf8Bom + csvBytes);
+7. Error handling and user feedback
 
-// Parse with explicit configuration
-final csvList = const CsvToListConverter(
-  fieldDelimiter: ',', 
-  eol: '\n', 
-  shouldParseNumbers: false
-).convert(csvString);
-```
+- Surface recoverable errors to the user via `ScaffoldMessenger.of(context).showSnackBar(...)`.
+- Log details with `debugPrint` (include stack traces where helpful).
+- Do not swallow exceptions silently; prefer rethrowing after logging so callers can react.
 
-### JSON Handling (Configuration)
-```dart
-// Service-level operations
-final List<Map<String, dynamic>> jsonList = data.map((item) => item.toJson()).toList();
-final jsonString = json.encode(jsonList);
-await file.writeAsString(jsonString, encoding: utf8);
-```
+8. Data handling
 
-## Internationalization
+- CSV: write with UTF-8 BOM for Excel compatibility when exporting. Parse with an explicit converter.
+- JSON: store configuration as JSON using `json.encode`/`json.decode` and `File.writeAsString(..., encoding: utf8)`.
 
-### Hebrew/RTL Support
-- Set locale in MaterialApp: `locale: const Locale('he', 'IL')`
-- Use `TextDirection.rtl` for form fields: `textDirection: TextDirection.rtl`
-- Mixed UI languages are acceptable (Hebrew labels, English code)
+9. Tests
 
-## Testing
+- Tests live under `test/` and use `flutter_test`.
+- Run a single file: `flutter test test/widget_test.dart`.
+- Run tests matching a name: `flutter test --name "partial test name"`.
+- Tests should avoid hitting real file system/network. Use dependency injection or mocks for services.
 
-### Test Structure
-```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:my_flutter_exercisetracker/main.dart';
+10. Internationalization
 
-void main() {
-  group('Widget Tests', () {
-    testWidgets('Widget renders correctly', (WidgetTester tester) async {
-      await tester.pumpWidget(const MyApp());
-      
-      expect(find.byType(ScreenWidget), findsOneWidget);
-      expect(find.text('Expected Text'), findsOneWidget);
-    });
+- App supports RTL; set `locale` on `MaterialApp` (e.g., `Locale('he', 'IL')`). Use `TextDirection.rtl` where necessary.
 
-    testWidgets('User interaction works', (WidgetTester tester) async {
-      await tester.pumpWidget(const MyApp());
-      
-      await tester.tap(find.byType(ElevatedButton));
-      await tester.pump();
-      
-      expect(find.text('New State Text'), findsOneWidget);
-    });
-  });
-}
-```
+11. Cursor / Copilot rules
 
-## Project Structure
+- No `.cursor` rules or `.cursorrules` were found in the repository root.
+- No `.github/copilot-instructions.md` was found. Agents should follow this AGENTS.md and standard GitHub Copilot behavior.
 
-```
-lib/
-├── main.dart                    # App entry point
-├── models/                      # Data models
-│   ├── exercise_record.dart      # Exercise tracking data
-│   └── task_type.dart          # Task type definitions
-├── services/                    # Data management
-│   ├── local_file_service.dart  # CSV file operations
-│   └── task_type_service.dart   # Task type management
-└── admin_page.dart             # Admin interface
-```
+12. Adding dependencies
 
-## Key Principles
+- Prefer Flutter/Dart core packages first. Add new dependencies to `pubspec.yaml` and run `flutter pub get`.
+- Keep dependency upgrades small and test on target platforms before committing.
 
-1. **Separation of Concerns:** Models, services, and UI are distinct layers
-2. **Immutable State:** Use `copyWith` for state updates
-3. **Error First Design:** Always handle errors gracefully with user feedback
-4. **Internationalization Ready:** Built-in Hebrew/RTL support
-5. **Local First:** Primary storage is local files (CSV for data, JSON for config)
-6. **User Experience:** Loading states, error messages, and intuitive interactions
+13. Git workflow for agents
 
-## Dependencies
+- Do not push changes without human approval unless explicitly asked.
+- Use feature branches for larger work and create clean commits with explanatory messages.
 
-When adding new dependencies:
-1. Check if existing Flutter core packages can solve the problem first
-2. Add to `pubspec.yaml` under appropriate section
-3. Run `flutter pub get`
-4. Test on target platforms before committing
+14. Safety and tips for autonomous edits
 
-## Git Workflow
+- Never delete or revert changes not introduced by you unless asked.
+- Avoid destructive Git operations (`reset --hard`, force-push) unless user explicitly requests.
 
-1. Commit frequently with clear messages
-2. Test before pushing
-3. Use feature branches for significant changes
-4. Keep `main` branch stable at all times
+If you need more detailed rules (formatters, linters, or pre-commit hooks), open an issue or add project configuration files (`analysis_options.yaml`, `.editorconfig`, pre-commit hooks) and update this document.
 
-## Performance Considerations
-
-- Use computed properties for derived state (`get _filteredRecords`)
-- Implement proper loading states
-- Avoid unnecessary widget rebuilds
-- Use `const` widgets where possible
-- Consider pagination for large datasets (>100 records)
+Happy coding — keep changes small, tested and well-logged.

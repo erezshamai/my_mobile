@@ -40,7 +40,6 @@ class ExerciseTrackerScreen extends StatefulWidget {
 class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
   bool _isExercising = false;
   DateTime? _startTime;
-  final String _selectedOption = 'push into local file';
   final TextEditingController _noteController = TextEditingController();
   // State for holding the list of records
   List<ExerciseRecord> _records = [];
@@ -473,7 +472,7 @@ Widget _buildTaskTypeDropdown() {
     }
 
     return DropdownButtonFormField<String>(
-      value: _selectedTaskTypeId,
+      initialValue: _selectedTaskTypeId,
       decoration: const InputDecoration(
         labelText: 'Task Type',
         border: OutlineInputBorder(),

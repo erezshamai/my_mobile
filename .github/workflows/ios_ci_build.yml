@@ -1,0 +1,77 @@
+name: Build iOS .ipa (CI)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    env:
+      FLUTTER_CHANNEL: stable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Ensure required secrets
+        run: |
+          if [ -z "${{ secrets.CERT_P12_BASE64 }}" ] || [ -z "${{ secrets.CERT_PASSWORD }}" ] || [ -z "${{ secrets.PROV_PROFILE_BASE64 }}" ] || [ -z "${{ secrets.BUNDLE_ID }}" ]; then
+            echo "Required secrets missing. Please set CERT_P12_BASE64, CERT_PASSWORD, PROV_PROFILE_BASE64, and BUNDLE_ID in repository secrets.";
+            exit 1;
+          fi
+
+      - name: Decode code signing assets
+        run: |
+          mkdir -p ./codesign
+          echo "${{ secrets.CERT_P12_BASE64 }}" | base64 --decode > ./codesign/certs.p12
+          echo "${{ secrets.PROV_PROFILE_BASE64 }}" | base64 --decode > ./codesign/profile.mobileprovision
+
+      - name: Install provisioning profile
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp ./codesign/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Create exportOptions.plist
+        run: |
+          cat > exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>ad-hoc</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${{ secrets.BUNDLE_ID }}</key>
+              <string>profile.mobileprovision</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Build IPA (archive & export)
+        env:
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          # Import certificate into keychain
+          KEYCHAIN=build.keychain
+          security create-keychain -p '' $KEYCHAIN
+          security default-keychain -s $KEYCHAIN
+          security unlock-keychain -p '' $KEYCHAIN
+          security import ./codesign/certs.p12 -P "$CERT_PASSWORD" -A -k $KEYCHAIN
+
+          # Build IPA with flutter (requires proper signing setup)
+          flutter build ipa --export-options-plist=exportOptions.plist --no-tree-shake-icons
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: build/ios/ipa

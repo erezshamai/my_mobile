@@ -3,7 +3,17 @@ import 'package:my_flutter_exercisetracker/models/task_type.dart';
 import 'package:my_flutter_exercisetracker/services/task_type_service.dart';
 
 class AdminPage extends StatefulWidget {
-  const AdminPage({super.key});
+  // Allow injecting service functions for easier testing.
+  final Future<List<TaskType>> Function()? getTaskTypesFunc;
+  final Future<TaskType> Function(String name, String description)? addTaskTypeFunc;
+  final Future<void> Function(String taskTypeId)? removeTaskTypeFunc;
+
+  const AdminPage({
+    super.key,
+    this.getTaskTypesFunc,
+    this.addTaskTypeFunc,
+    this.removeTaskTypeFunc,
+  });
 
   @override
   State<AdminPage> createState() => _AdminPageState();
@@ -34,7 +44,9 @@ class _AdminPageState extends State<AdminPage> {
 
   Future<void> _fetchTaskTypes() async {
     try {
-      final taskTypes = await TaskTypeService.getTaskTypes();
+      final taskTypes = widget.getTaskTypesFunc != null
+          ? await widget.getTaskTypesFunc!()
+          : await TaskTypeService.getTaskTypes();
       if (!mounted) return;
       setState(() {
         _taskTypes = taskTypes;
@@ -77,10 +89,14 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     try {
-      await TaskTypeService.addTaskType(
-        _nameController.text.trim(),
-        _descriptionController.text.trim(),
-      );
+      if (widget.addTaskTypeFunc != null) {
+        await widget.addTaskTypeFunc!(_nameController.text.trim(), _descriptionController.text.trim());
+      } else {
+        await TaskTypeService.addTaskType(
+          _nameController.text.trim(),
+          _descriptionController.text.trim(),
+        );
+      }
       
       _nameController.clear();
       _descriptionController.clear();
@@ -98,7 +114,11 @@ class _AdminPageState extends State<AdminPage> {
 
   Future<void> _removeTaskType(TaskType taskType) async {
     try {
-      await TaskTypeService.removeTaskType(taskType.id);
+      if (widget.removeTaskTypeFunc != null) {
+        await widget.removeTaskTypeFunc!(taskType.id);
+      } else {
+        await TaskTypeService.removeTaskType(taskType.id);
+      }
       await _fetchTaskTypes();
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -229,42 +249,44 @@ class _AdminPageState extends State<AdminPage> {
                           ? const Center(child: CircularProgressIndicator())
                           : _taskTypes.isEmpty
                               ? const Center(child: Text('No task types found'))
-                              : ListView.builder(
-                                  itemCount: _taskTypes.length,
-                                  itemBuilder: (context, index) {
-                                    final taskType = _taskTypes[index];
-                                    return ListTile(
-                                      title: Text(taskType.name),
-                                      subtitle: Text(taskType.description),
-                                      trailing: IconButton(
-                                        icon: const Icon(Icons.delete, color: Colors.red),
-                                        onPressed: () {
-                                          showDialog(
-                                            context: context,
-                                            builder: (context) => AlertDialog(
-                                              title: const Text('Delete Task Type'),
-                                              content: Text(
-                                                'Are you sure you want to delete "${taskType.name}"?',
+                              : Expanded(
+                                  child: ListView.builder(
+                                    itemCount: _taskTypes.length,
+                                    itemBuilder: (context, index) {
+                                      final taskType = _taskTypes[index];
+                                      return ListTile(
+                                        title: Text(taskType.name),
+                                        subtitle: Text(taskType.description),
+                                        trailing: IconButton(
+                                          icon: const Icon(Icons.delete, color: Colors.red),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) => AlertDialog(
+                                                title: const Text('Delete Task Type'),
+                                                content: Text(
+                                                  'Are you sure you want to delete "${taskType.name}"?',
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(context),
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () {
+                                                      Navigator.pop(context);
+                                                      _removeTaskType(taskType);
+                                                    },
+                                                    child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                                  ),
+                                                ],
                                               ),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () => Navigator.pop(context),
-                                                  child: const Text('Cancel'),
-                                                ),
-                                                TextButton(
-                                                  onPressed: () {
-                                                    Navigator.pop(context);
-                                                    _removeTaskType(taskType);
-                                                  },
-                                                  child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    );
-                                  },
+                                            );
+                                          },
+                                        ),
+                                      );
+                                    },
+                                  ),
                                 ),
                     ],
                   ),

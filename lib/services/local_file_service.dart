@@ -6,24 +6,37 @@ import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:my_flutter_exercisetracker/models/exercise_record.dart'; 
 import 'package:flutter/foundation.dart';
+import 'package:my_flutter_exercisetracker/services/sembast_service.dart';
 
 //import 'package:flutter/material.dart'; // If this is a Flutter application, import it accordingly
 
 // --- Global Constants for File Management ---
 const List<String> _csvHeaders = ['Date', 'Start Time', 'End Time', 'Duration', 'TaskType', 'Notes'];
 class LocalFileService {
+  // Allow overriding the temporary directory getter for tests
+  static Future<Directory> Function()? tempDirGetter;
+
+  // Allow overriding the file saver function for tests to avoid platform channels
+  // Returns the saved file path string
+  static Future<String> Function({required String name, required Uint8List bytes, required String ext, required MimeType mimeType})? fileSaverFunc;
+
   
   static Future<String> _getFileName() async {
-      final currentTime = DateTime.now();    
-      final formattedDate = '${currentTime.year}${currentTime.month.toString().padLeft(2, '0')}${currentTime.day.toString().padLeft(2, '0')}';
-      final fileName = '${formattedDate}_MyExerciseTracker.csv';
-    return fileName;
+      // Keep daily filename generation centralized but prefer monthly files.
+      final currentTime = DateTime.now();
+      return buildFileNameFor(currentTime);
+  }
+
+  // Build file name for a specific date. Use YYYYMM so a single CSV is used per month.
+  static String buildFileNameFor(DateTime date) {
+    final formattedDate = '${date.year}${date.month.toString().padLeft(2, '0')}';
+    return '${formattedDate}_MyExerciseTracker.csv';
   }
 
   static Future<String> _getFilePath() async {      
       final fileName = await _getFileName();
       // You can get the app's document directory to manage temporary files
-      final tempDir = await getTemporaryDirectory();
+      final tempDir = tempDirGetter != null ? await tempDirGetter!() : await getTemporaryDirectory();
       final tempFilePath = '${tempDir.path}/$fileName';
       debugPrint('Temporary file path: $tempFilePath');
     return tempFilePath;
@@ -33,6 +46,16 @@ class LocalFileService {
   // NEW: Read all records from the CSV file
   // ----------------------------------------------------
   static Future<List<ExerciseRecord>> readAllRecords() async {
+    // Use LMDB service as primary storage; fallback to CSV file if LMDB fails
+    try {
+      final records = await SembastService.readAllRecords();
+      debugPrint('Read ${records.length} records from Sembast storage.');
+      if (records.isNotEmpty) return records;
+    } catch (e) {
+      debugPrint('Sembast read failed, falling back to CSV: $e');
+    }
+
+    // Fallback to CSV file (existing behavior) for backward compatibility
     final filePath = await _getFilePath();
     final file = File(filePath);
 
@@ -75,7 +98,6 @@ if (csvList.isNotEmpty  && csvList[0].join(',') == _csvHeaders.join(',')) {
     }
   }
   static Future<void> addLocalExerciseRecord(DateTime currentTime, String note) async {    
-    
     try {
       final newRecord = ExerciseRecord(
       date: currentTime,
@@ -84,26 +106,45 @@ if (csvList.isNotEmpty  && csvList[0].join(',') == _csvHeaders.join(',')) {
       notes: note,
     );
 
-    // Get existing records, add the new one, and rewrite the file
+    // Write to sembast primary storage
+    try {
+      await SembastService.addRecord(newRecord);
+    } catch (e) {
+      debugPrint('Sembast add failed, will fallback to CSV: $e');
+      // Fallback: append to CSV by reading existing, adding, and rewriting
     final existingRecords = await readAllRecords();
-    existingRecords.add(newRecord); 
+    existingRecords.add(newRecord);
+    await _rewriteAndSaveFile(existingRecords, forDate: currentTime);
+    return;
+    }
 
-    await _rewriteAndSaveFile(existingRecords);
+    // Optionally also mirror to CSV for user Downloads — keep existing behavior
+    final existingRecords = await readAllRecords();
+    existingRecords.add(newRecord);
+    await _rewriteAndSaveFile(existingRecords, forDate: currentTime);
     } catch (e) {
       debugPrint('Error writing to local file: $e');
       rethrow;
     }
   }
 
-static Future<void> updateAndSaveRecord(List<ExerciseRecord> updatedRecords) async {
-    await _rewriteAndSaveFile(updatedRecords);
+  static Future<void> updateAndSaveRecord(List<ExerciseRecord> updatedRecords) async {
+    try {
+      await SembastService.replaceAllRecords(updatedRecords);
+    } catch (e) {
+      debugPrint('Sembast update failed, falling back to CSV: $e');
+      await _rewriteAndSaveFile(updatedRecords);
+    }
   }
 
   // Internal method to rewrite the entire file and save it
-  static Future<void> _rewriteAndSaveFile(List<ExerciseRecord> records) async {
-    final filePath = await _getFilePath();
+  // Allow specifying a date for which file to save (month grouping). Defaults to now.
+  static Future<void> _rewriteAndSaveFile(List<ExerciseRecord> records, {DateTime? forDate}) async {
+    final date = forDate ?? DateTime.now();
+    final fileName = buildFileNameFor(date);
+    final tempDir = tempDirGetter != null ? await tempDirGetter!() : await getTemporaryDirectory();
+    final filePath = '${tempDir.path}/$fileName';
     final file = File(filePath);
-    final fileName = await _getFileName();
     debugPrint('Rewriting file at path: $filePath');
     debugPrint('File name for saving: $fileName');
     // Convert all records to CSV format, including the header
@@ -126,6 +167,10 @@ static Future<void> updateAndSaveRecord(List<ExerciseRecord> updatedRecords) asy
     // The file needs to be written as raw bytes to prepend the BOM
     Uint8List fileBytesWithBom = Uint8List.fromList(utf8Bom + csvBytes); 
 
+    // Ensure directory exists
+    final parent = file.parent;
+    if (!await parent.exists()) await parent.create(recursive: true);
+
     // 2. Write the new complete CSV bytes to the temporary file
     // Use writeAsBytes instead of writeAsString
     await file.writeAsBytes(fileBytesWithBom);
@@ -134,12 +179,17 @@ static Future<void> updateAndSaveRecord(List<ExerciseRecord> updatedRecords) asy
     Uint8List fileBytes = await file.readAsBytes();
 
     // 3. Use file_saver to save the file to the user's Downloads folder.
-    String downloadfilePath = await FileSaver.instance.saveFile(
-      name: fileName.replaceAll('.csv', ''), // name without extension
-      bytes: fileBytes,
-      ext: 'csv',
-      mimeType: MimeType.csv,        
-    );
+    String downloadfilePath;
+    if (fileSaverFunc != null) {
+      downloadfilePath = await fileSaverFunc!(name: fileName.replaceAll('.csv', ''), bytes: fileBytes, ext: 'csv', mimeType: MimeType.csv);
+    } else {
+      downloadfilePath = await FileSaver.instance.saveFile(
+        name: fileName.replaceAll('.csv', ''), // name without extension
+        bytes: fileBytes,
+        ext: 'csv',
+        mimeType: MimeType.csv,
+      );
+    }
 
     debugPrint('Successfully updated and saved file to $downloadfilePath folder.');
   }  

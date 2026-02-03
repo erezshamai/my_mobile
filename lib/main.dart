@@ -45,6 +45,10 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
   List<ExerciseRecord> _records = [];
   bool _isLoading = true; // NEW: Loading state
   
+  // Pagination state
+  int _currentPage = 0;
+  static const int _pageSize = 5;
+  
   // Task Type related state
   List<TaskType> _taskTypes = [];
   String? _selectedTaskTypeId;
@@ -149,12 +153,14 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
     
     // Filter by Date Range
     if (_filterStartDate != null) {
+      debugPrint('Filtering from start date: $_filterStartDate');
       records = records.where((record) => 
         record.date.isAtSameMomentAs(_filterStartDate!) || record.date.isAfter(_filterStartDate!)
       ).toList();
     }
     
     if (_filterEndDate != null) {
+      debugPrint('Filtering to end date: $_filterEndDate');
       records = records.where((record) => 
         record.date.isAtSameMomentAs(_filterEndDate!) || record.date.isBefore(_filterEndDate!)
       ).toList();
@@ -168,6 +174,22 @@ class _ExerciseTrackerState extends State<ExerciseTrackerScreen> {
     });
     
     return records;
+  }
+
+  List<ExerciseRecord> get _paginatedRecords {
+    final filtered = _filteredRecords;
+    final startIndex = _currentPage * _pageSize;
+    if (startIndex >= filtered.length) {
+      if (filtered.isEmpty) return [];
+      // If we are on a page that no longer exists (e.g. due to filtering), 
+      // we don't automatically reset here to avoid side effects in getter,
+      // but the UI will show empty or we should handle it in setState.
+      return [];
+    }
+    final endIndex = (startIndex + _pageSize) > filtered.length
+        ? filtered.length
+        : startIndex + _pageSize;
+    return filtered.sublist(startIndex, endIndex);
   }
 
   @override
@@ -199,7 +221,7 @@ void _handleStartExercise() {
       );
       
       // Add to local file service
-      LocalFileService.addLocalExerciseRecord(currentTime, note);
+      LocalFileService.addLocalExerciseRecord(currentTime, note, taskType: selectedTaskType?.name);
       
       // Update the UI state directly with the new record
       setState(() {
@@ -247,6 +269,11 @@ void _handleStartExercise() {
         
         _records[index] = updatedRecord; // Update the list in state
         LocalFileService.updateAndSaveRecord(_records); // Save to file
+        
+        setState(() {
+          _isExercising = false;
+          _startTime = null;
+        });
         
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Task stopped and record updated!')),
@@ -332,61 +359,72 @@ actions: [
         builder: (BuildContext innerContext) { //Use this new context for SnackBar
       return Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            _buildStartButton(),
-            const SizedBox(height: 20),
-            //_buildStorageDropdown(),
-            //const SizedBox(height: 20),
-if (_isExercising)
-              _buildActiveExerciseDisplay(),
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: _noteController,
-                    decoration: const InputDecoration(labelText: 'Enter notes for new session'),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              _buildStartButton(),
+              const SizedBox(height: 20),
+              //_buildStorageDropdown(),
+              //const SizedBox(height: 20),
+    if (_isExercising)
+                _buildActiveExerciseDisplay(),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: TextField(
+                      controller: _noteController,
+                      decoration: const InputDecoration(labelText: 'Enter notes for new Task'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 1,
-                  child: _buildTaskTypeDropdown(),
-                ),
-              ],
-            ),
-const SizedBox(height: 30),
-            const Text(
-              'Past/Ongoing Tasks', 
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              _getRecordCountText(),
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 10),
-            _buildFilterControls(),
-            const SizedBox(height: 10),
-            Expanded(
-child: _isLoading 
-                ? const Center(child: CircularProgressIndicator()) 
-                : _filteredRecords.isEmpty 
-                    ? Center(child: Text(_hasActiveFilters() 
-                        ? 'No records match the current filters.' 
-                        : 'No records found. Start a new Task!'))
-                    : SingleChildScrollView( 
-                        scrollDirection: Axis.vertical,
-                        child: SingleChildScrollView( // Add horizontal scroll for the table itself
-                          scrollDirection: Axis.horizontal,
-                          child: _buildRecordsTable(),
-                        ),
-                      ),
-            ),
-          ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 1,
+                    child: _buildTaskTypeDropdown(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 30),
+              const Text(
+                'Past/Ongoing Tasks', 
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                _getRecordCountText(),
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 10),
+              _buildFilterControls(),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 400, // Give table area a fixed height
+                child: _isLoading 
+                    ? const Center(child: CircularProgressIndicator()) 
+                    : _filteredRecords.isEmpty 
+                        ? Center(child: Text(_hasActiveFilters() 
+                            ? 'No records match the current filters.' 
+                            : 'No records found. Start a new Task!'))
+                        : Column(
+                            children: [
+                              Expanded(
+child: SingleChildScrollView( 
+                                  scrollDirection: Axis.horizontal,
+                                  child: Container(
+                                    constraints: const BoxConstraints(minWidth: 1000),
+                                    child: _buildRecordsTable(),
+                                  ),
+                                ),
+                              ),
+                              _buildPaginationControls(),
+                            ],
+                          ),
+              ),
+            ],
+          ),
         ),
       );// Padding
       }),
@@ -397,38 +435,57 @@ child: _isLoading
 
   Widget _buildRecordsTable() {
     return DataTable(
-      columnSpacing: 12,
-      horizontalMargin: 12,
-      dataRowMaxHeight: 60,
-columns: const [
-        DataColumn(label: Text('Date')),
-        DataColumn(label: Text('Start')),
-        DataColumn(label: Text('End')),
-        DataColumn(label: Text('Duration')),
-        DataColumn(label: Text('Task Type')),
-        DataColumn(label: Text('Notes')), // This column is now editable
-        DataColumn(label: Text('Action')),
+      columnSpacing: 20,
+      horizontalMargin: 20,
+      dataRowMaxHeight: 80,
+      headingRowColor: WidgetStateProperty.all<Color>(Colors.grey.shade100),
+      dividerThickness: 1.0,
+      
+      columns: const [
+        DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Start', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('End', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Duration', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Task Type', style: TextStyle(fontWeight: FontWeight.bold))),
+        DataColumn(label: Text('Notes', style: TextStyle(fontWeight: FontWeight.bold))), // This column is now editable
+        DataColumn(label: Text('Action', style: TextStyle(fontWeight: FontWeight.bold))),
       ],
-      rows: _filteredRecords.map((record) {
+      rows: _paginatedRecords.map((record) {
         final isOngoing = record.endTime == null;
         
         return DataRow(
           cells: [
-            DataCell(Text('${record.date.month}/${record.date.day}')),
-            DataCell(Text('${record.startTime.hour.toString().padLeft(2, '0')}:${record.startTime.minute.toString().padLeft(2, '0')}')),
-DataCell(Text(isOngoing ? '...' : '${record.endTime!.hour.toString().padLeft(2, '0')}:${record.endTime!.minute.toString().padLeft(2, '0')}')),
-            DataCell(Text(_formatDuration(record.duration))),
-            DataCell(Text(record.taskType ?? '')),
+            DataCell(Text(
+              '${record.date.year.toString().substring(2)}/${record.date.month.toString().padLeft(2, '0')}/${record.date.day.toString().padLeft(2, '0')}',
+              style: const TextStyle(fontSize: 13),
+            )),
+            DataCell(Text(
+              '${record.startTime.hour.toString().padLeft(2, '0')}:${record.startTime.minute.toString().padLeft(2, '0')}',
+              style: const TextStyle(fontSize: 13),
+            )),
+DataCell(Text(
+              isOngoing ? '...' : '${record.endTime!.hour.toString().padLeft(2, '0')}:${record.endTime!.minute.toString().padLeft(2, '0')}',
+              style: const TextStyle(fontSize: 13),
+            )),
+            DataCell(Text(
+              _formatDuration(record.duration),
+              style: const TextStyle(fontSize: 13),
+            )),
+            DataCell(Text(
+              record.taskType ?? '',
+              style: const TextStyle(fontSize: 13),
+            )),
             // MODIFIED: Editable Notes Cell
             DataCell(
               SizedBox(
-                width: 75, 
+                width: 250, 
                 child: TextFormField(
+                  key: ValueKey(record.startTime), // Use unique key to force widget rebuild when record changes
                   textDirection: TextDirection.rtl,
                   textAlign: TextAlign.left,
                   initialValue: record.notes,
                   keyboardType: TextInputType.text,
-                  maxLines: 2,
+                  maxLines: 3,
                   decoration: const InputDecoration(
                     border: InputBorder.none, // Make it look like a regular cell
                     contentPadding: EdgeInsets.zero,
@@ -459,9 +516,54 @@ DataCell(Text(isOngoing ? '...' : '${record.endTime!.hour.toString().padLeft(2, 
     );
   }
 
+  Widget _buildPaginationControls() {
+    if (_totalPages <= 1) {
+      return const SizedBox.shrink(); // Don't show pagination if there's only one page
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Previous button
+          IconButton(
+            onPressed: _hasPreviousPage ? _goToPreviousPage : null,
+            icon: const Icon(Icons.keyboard_arrow_left),
+            tooltip: 'Previous Page',
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          ),
+          
+          // Page info
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(4.0),
+            ),
+            child: Text(
+              'Page ${_currentPage + 1} of $_totalPages',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+          
+          // Next button
+          IconButton(
+            onPressed: _hasNextPage ? _goToNextPage : null,
+            icon: const Icon(Icons.keyboard_arrow_right),
+            tooltip: 'Next Page',
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          ),
+        ],
+      ),
+    );
+  }
+
 Widget _buildTaskTypeDropdown() {
     if (_isLoadingTaskTypes) {
       return DropdownButtonFormField<String>(
+      isExpanded: true,
         decoration: const InputDecoration(
           labelText: 'Task Type',
           border: OutlineInputBorder(),
@@ -472,6 +574,7 @@ Widget _buildTaskTypeDropdown() {
     }
 
     return DropdownButtonFormField<String>(
+      isExpanded: true,
       initialValue: _selectedTaskTypeId,
       decoration: const InputDecoration(
         labelText: 'Task Type',
@@ -509,7 +612,8 @@ Widget _buildTaskTypeDropdown() {
                 // Task Type Filter
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _selectedFilterTaskTypeId,
+                    isExpanded: true, // ADD THIS: This prevents the internal Row from overflowing
+                    initialValue: _selectedFilterTaskTypeId,
                     decoration: const InputDecoration(
                       labelText: 'All Task Types',
                       border: OutlineInputBorder(),
@@ -528,6 +632,7 @@ Widget _buildTaskTypeDropdown() {
                     onChanged: (value) {
                       setState(() {
                         _selectedFilterTaskTypeId = value;
+                        _resetPagination();
                       });
                     },
                   ),
@@ -545,7 +650,10 @@ Widget _buildTaskTypeDropdown() {
                       ),
                       child: Text(
                         _getDateRangeDisplayText(),
+                        maxLines: 1, // Keep it to one line
+                        overflow: TextOverflow.ellipsis, // Add dots if too long
                         style: TextStyle(
+                          fontSize: 12, // Slightly smaller font can also prevent overflows on small screens
                           color: _hasDateFilter() ? Theme.of(context).primaryColor : Colors.grey,
                         ),
                       ),
@@ -581,6 +689,7 @@ Widget _buildTaskTypeDropdown() {
       setState(() {
         _filterStartDate = picked.start;
         _filterEndDate = picked.end;
+        _resetPagination();
       });
     }
   }
@@ -610,34 +719,100 @@ Widget _buildTaskTypeDropdown() {
       _selectedFilterTaskTypeId = null;
       _filterStartDate = null;
       _filterEndDate = null;
+      _resetPagination();
     });
   }
 
   String _getRecordCountText() {
     final filteredCount = _filteredRecords.length;
     final totalCount = _records.length;
+    
+    if (filteredCount == 0) {
+      if (_hasActiveFilters()) {
+        return 'No records match the current filters';
+      }
+      return 'No records found. Start a new Task!';
+    }
+    
+    if (_totalPages > 1) {
+      // Show pagination info when there are multiple pages
+      final paginationInfo = 'Showing $_startRecordIndex-$_endRecordIndex of $filteredCount records';
+      if (_hasActiveFilters()) {
+        return '$paginationInfo (filtered from $totalCount total)';
+      }
+      return paginationInfo;
+    }
+    
+    // Single page behavior
     if (_hasActiveFilters()) {
       return 'Showing $filteredCount of $totalCount records';
     }
     return 'Total records: $totalCount';
   }
 
+  // Pagination control methods
+  void _goToPreviousPage() {
+    if (_currentPage > 0) {
+      setState(() {
+        _currentPage--;
+      });
+    }
+  }
+
+  void _goToNextPage() {
+    final totalPages = (_filteredRecords.length / _pageSize).ceil();
+    if (_currentPage < totalPages - 1) {
+      setState(() {
+        _currentPage++;
+      });
+    }
+  }
+
+  
+
+  void _resetPagination() {
+    setState(() {
+      _currentPage = 0;
+    });
+  }
+
+  // Pagination helper getters
+  int get _totalPages {
+    if (_filteredRecords.isEmpty) return 0;
+    return (_filteredRecords.length / _pageSize).ceil();
+  }
+
+  int get _startRecordIndex {
+    if (_filteredRecords.isEmpty) return 0;
+    return _currentPage * _pageSize + 1;
+  }
+
+  int get _endRecordIndex {
+    if (_filteredRecords.isEmpty) return 0;
+    final endIndex = (_currentPage + 1) * _pageSize;
+    return endIndex > _filteredRecords.length ? _filteredRecords.length : endIndex;
+  }
+
+  bool get _hasPreviousPage => _currentPage > 0;
+  bool get _hasNextPage => _currentPage < _totalPages - 1;
+
   Widget _buildStartButton() {
     return ElevatedButton.icon(
-      onPressed: _isExercising ? _handleStopExercise : _handleStartExercise,
-      icon: Icon(_isExercising ? Icons.stop_circle_outlined : Icons.play_arrow_outlined),
-      label: Text(
-        _isExercising ? 'סיים משימה' : 'התחל משימה',
-        style: const TextStyle(fontSize: 18),
+      onPressed:  _handleStartExercise,
+      icon: const Icon(Icons.play_arrow_outlined, size: 18), // Smaller icon
+      label: Text('התחל משימה',
+        style: const TextStyle(fontSize: 14),
       ),
       style: ElevatedButton.styleFrom(
         foregroundColor: Colors.white,
         backgroundColor: _isExercising ? Colors.red.shade400 : Colors.green.shade600,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        // Use minimumSize to constrain the width
+        minimumSize: const Size(120, 36),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
         ),
-        elevation: 5,
+        elevation: 3,
       ),
     );
   }
@@ -648,7 +823,9 @@ Widget _buildTaskTypeDropdown() {
     // Defensive check: If _startTime is null, something is wrong, so return an empty widget or a placeholder.
     if (_startTime == null) {
       return const SizedBox.shrink(); 
-    }    
+    }
+    // Helper to format the digits
+    String twoDigits(int n) => n.toString().padLeft(2, '0');    
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -662,7 +839,7 @@ Widget _buildTaskTypeDropdown() {
             ),
             const SizedBox(height: 10),
             Text(
-              'Started at: ${_startTime!.hour}:${_startTime!.minute}:${_startTime!.second}',
+              'Started at: ${twoDigits(_startTime!.hour)}:${twoDigits(_startTime!.minute)}:${twoDigits(_startTime!.second)}',
               style: const TextStyle(fontSize: 16, color: Colors.black54),
             ),
           ],

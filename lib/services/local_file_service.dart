@@ -97,13 +97,14 @@ if (csvList.isNotEmpty  && csvList[0].join(',') == _csvHeaders.join(',')) {
       return []; // Return empty list on error
     }
   }
-  static Future<void> addLocalExerciseRecord(DateTime currentTime, String note) async {    
+  static Future<void> addLocalExerciseRecord(DateTime currentTime, String note, {String? taskType}) async {    
     try {
       final newRecord = ExerciseRecord(
       date: currentTime,
       startTime: currentTime,
       endTime: null, // Initial record has no end time
       notes: note,
+      taskType: taskType,
     );
 
     // Write to sembast primary storage

@@ -9,6 +9,7 @@ class TaskTypeService {
   
   static Future<String> _getFilePath() async {
     final directory = await getApplicationDocumentsDirectory();
+    debugPrint('File path of task_types: ${directory.path}/$_fileName');
     return '${directory.path}/$_fileName';
   }
 

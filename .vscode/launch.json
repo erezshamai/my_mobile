@@ -1,0 +1,13 @@
+{
+    "configurations": [
+        {
+            "type": "dart",
+            "request": "launch",
+            "name": "Flutter Windows Debug",
+            "program": "lib/main.dart",
+            "cwd": "${workspaceFolder}",
+            "deviceId": "windows",
+            "internalConsoleOptions": "neverOpen"
+        }
+    ]
+}

@@ -70,7 +70,10 @@ void main() {
     await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
 
+    // Verify TypeA is removed
     expect(find.text('TypeA'), findsNothing);
+    // Verify TypeB still exists
     expect(find.text('TypeB'), findsOneWidget);
   });
 }
+
